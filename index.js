@@ -7,9 +7,20 @@ const app = express();
 const upload = multer();
 
 // app.use(cors());
+const allowedOrigins = [
+  'https://gestor-cuentas-corrientes.vercel.app',
+  'https://gestor-cuentas-corrientes.vercel.app/'
+];
+
 app.use(cors({
-  origin: "https://gestor-cuentas-corrientes.vercel.app/"
-}))
+  origin: function (origin, callback) {
+      if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+          callback(null, true);
+      } else {
+          callback(new Error('Not allowed by CORS'));
+      }
+  }
+}));
 app.use(bodyParser.json()); //para apps json
 app.use(bodyParser.urlencoded({ extended: true })); // Middleware para parsear application/x-www-form-urlencoded
 
