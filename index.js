@@ -6,7 +6,10 @@ const multer = require('multer');
 const app = express();
 const upload = multer();
 
-app.use(cors());
+// app.use(cors());
+app.use(cors({
+  origin: "https://gestioncorrienteserver-production.up.railway.app/"
+}))
 app.use(bodyParser.json()); //para apps json
 app.use(bodyParser.urlencoded({ extended: true })); // Middleware para parsear application/x-www-form-urlencoded
 
