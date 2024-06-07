@@ -8,7 +8,7 @@ const upload = multer();
 
 // app.use(cors());
 app.use(cors({
-  origin: "https://gestioncorrienteserver-production.up.railway.app/"
+  origin: "https://gestor-cuentas-corrientes.vercel.app/"
 }))
 app.use(bodyParser.json()); //para apps json
 app.use(bodyParser.urlencoded({ extended: true })); // Middleware para parsear application/x-www-form-urlencoded
