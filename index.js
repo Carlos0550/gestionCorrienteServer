@@ -8,7 +8,7 @@ const upload = multer();
 
 // app.use(cors());
 const allowedOrigins = [
-  'https://gestor-cuentas-corrientes.vercel.app',
+  'https://gestor-cuentas-corrientes-b5t81fdew-carlos0550s-projects.vercel.app/createUser',
   'https://gestor-cuentas-corrientes.vercel.app/'
 ];
 
@@ -25,7 +25,7 @@ app.use(bodyParser.json()); //para apps json
 app.use(bodyParser.urlencoded({ extended: true })); // Middleware para parsear application/x-www-form-urlencoded
 
 
-const port = 10589;
+
 
 app.get("/", (req, res) => {
   res.send("hello")
@@ -512,6 +512,7 @@ app.post("/api/clients/obtenerHistorialDelCliente", (req, res) => {
     res.status(200).json(result)
   })
 })
+const port = 3001;
 app.listen(process.env.PORT || port, () => {
   console.log(`Servidor corriendo en el puerto ${port}`);
 });
