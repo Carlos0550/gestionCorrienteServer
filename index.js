@@ -24,91 +24,73 @@ app.get("/", (req, res) => {
 function randomID() {
   return Math.random().toString(14).substr(2, 9)
 }
-function getDate() {
-  const date = new Date();
-  let day = date.getDate()
-  let month = date.getMonth() + 1
-  let year = date.getFullYear()
-  let fullDate = `${day}-${month}-${year}`
-  return fullDate
-}
-app.post("/api/clients/create", (req, res) => {
+
+app.post("/api/clients/create", async (req, res) => {
   const { nombre, apellido, email, dni, telefono, direccion } = req.body;
   const idDeudor = randomID();
 
-  const checkUserQuery = `SELECT COUNT(*) AS count FROM usuarios WHERE dni = '${dni}'`;
+  const checkUserQuery = `SELECT COUNT(*) AS count FROM usuarios WHERE dni = ?`;
+  const insertUserQuery = `INSERT INTO usuarios (nombre, apellido, email, dni, telefono, direccion, id_deudor) VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
   try {
-    db.query(checkUserQuery, (error, results) => {
-      if (error) {
-        console.error("Error al verificar el usuario", error);
-        res.status(501).send('Error al verificar el usuario');
-        return;
-      }
+    const [results] = await db.query(checkUserQuery, [dni]);
+    const count = results[0].count;
 
-      const count = results[0].count;
-      if (count > 0) {
-        res.status(409).send('Error, ya existe un usuario con ese DNI!');
-      } else {
-        const insertUserQuery = `INSERT INTO usuarios (nombre, apellido, email, dni, telefono, direccion, id_deudor) VALUES ('${nombre}', '${apellido}', '${email}', '${dni}', '${telefono}', '${direccion}','${idDeudor}')`;
+    if (count > 0) {
+      return res.status(409).send('Error, ya existe un usuario con ese DNI!');
+    }
 
-        db.query(insertUserQuery, (err, result) => {
-          if (err) {
-            console.error('Error al insertar el usuario', err);
-            res.status(500).send('Error al insertar el usuario');
-            return;
-          }
+    await db.query(insertUserQuery, [nombre, apellido, email, dni, telefono, direccion, idDeudor]);
 
-          res.status(201).send('Usuario creado correctamente');
-        });
-      }
-    });
+    res.status(201).send('Usuario creado correctamente');
   } catch (error) {
-    console.log(error);
+    console.error('Error al procesar la solicitud', error);
     res.status(500).send('Error interno del servidor');
   }
 });
 
 
 
-app.post("/api/clients/find", (req, res) => {
+app.post("/api/clients/find", async (req, res) => {
   const { nombre, apellido, dni } = req.body;
   let query;
+  let params;
 
   if (nombre) {
-    query = `SELECT * FROM usuarios WHERE nombre = '${nombre}'`;
+    query = `SELECT * FROM usuarios WHERE nombre = ?`;
+    params = [nombre];
   } else if (apellido) {
-    query = `SELECT * FROM usuarios WHERE apellido = '${apellido}'`;
+    query = `SELECT * FROM usuarios WHERE apellido = ?`;
+    params = [apellido];
   } else if (dni) {
-    query = `SELECT * FROM usuarios WHERE dni = '${dni}'`;
+    query = `SELECT * FROM usuarios WHERE dni = ?`;
+    params = [dni];
   } else {
     return res.status(400).send('Debe proporcionar nombre, apellido o dni para la búsqueda.');
   }
 
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error("Error al buscar usuario:", err);
-      return res.status(500).send("Error interno del servidor");
-    }
+  try {
+    const [results] = await db.query(query, params);
 
     if (results.length === 0) {
       return res.status(404).send("No se encontraron usuarios con el criterio proporcionado.");
     }
-    res.status(201).json(results);
 
-  });
+    res.status(200).json(results);
+  } catch (err) {
+    console.error("Error al buscar usuario:", err);
+    res.status(500).send("Error interno del servidor");
+  }
 });
 
-app.post("/api/clients/retrieveDebtCustomer", (req, res) => {
+app.post("/api/clients/retrieveDebtCustomer", async (req, res) => {
   const { idDeudor } = req.body;
   console.log(req.body);
 
   const query = `SELECT * FROM adeudamiento WHERE id_usuario = ?`;
-  db.query(query, idDeudor, (err, result) => {
-    if (err) {
-      console.error("Error al ejecutar la consulta:", err);
-      return res.status(500).json({ error: "Error interno del servidor" });
-    }
+
+  try {
+    const [result] = await db.query(query, [idDeudor]);
 
     if (result.length === 0) {
       console.log("No se encontraron resultados para idDeudor:", idDeudor);
@@ -116,16 +98,17 @@ app.post("/api/clients/retrieveDebtCustomer", (req, res) => {
     }
 
     res.status(200).json(result); // Enviar los resultados encontrados
-  });
+  } catch (err) {
+    console.error("Error al ejecutar la consulta:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
-app.get("/api/clients/getAllDebts", (req, res) => {
+app.get("/api/clients/getAllDebts", async (req, res) => {
   const query = `SELECT * FROM adeudamiento`;
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error("Error al ejecutar la consulta:", err);
-      return res.status(500).json({ error: "Error interno del servidor" });
-    }
+
+  try {
+    const [result] = await db.query(query);
 
     if (result.length === 0) {
       console.log("No se encontraron resultados");
@@ -133,23 +116,23 @@ app.get("/api/clients/getAllDebts", (req, res) => {
     }
 
     res.status(200).json(result);
-  });
-})
+  } catch (err) {
+    console.error("Error al ejecutar la consulta:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
 
 
-app.post("/api/clients/addDebt", agregarDeuda);
-
-async function agregarDeuda(req, res) {
+app.post("/api/clients/addDebt", async (req, res) => {
   try {
     console.log(req.body);
     const products = req.body.values;
-    const nombreCompleto = req.body.nombreCompleto
+    const nombreCompleto = req.body.nombreCompleto;
 
     for (let product of products) {
       const { nameProduct, price, arsOrUsd, quantity, date, id_deudor } = product;
-      const query = `INSERT INTO adeudamiento (nombre_producto, precio_unitario, cantidad, fecha, moneda, id_usuario, nombre_completo) VALUES ('${nameProduct}', '${price}', '${quantity}', '${date}', '${arsOrUsd}', '${id_deudor}', '${nombreCompleto}')`;
-      await db.query(query);
-
+      const query = `INSERT INTO adeudamiento (nombre_producto, precio_unitario, cantidad, fecha, moneda, id_usuario, nombre_completo) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+      await db.query(query, [nameProduct, price, quantity, date, arsOrUsd, id_deudor, nombreCompleto]);
     }
 
     res.status(201).json({ message: 'Deudas agregadas correctamente' });
@@ -157,70 +140,33 @@ async function agregarDeuda(req, res) {
     console.error('Error al agregar deudas:', error);
     res.status(500).json({ error: 'Error interno del servidor al procesar la solicitud' });
   }
-}
-
-// app.put("/api/debts/updateDebtCustomer", (req, res) => {
-//   const formData = req.body;
-//   const { id, fechaEntrega, nuevoValor, ultimaEntrega } = formData;
-
-//   // Iniciar una transacción
-//   db.beginTransaction((err) => {
-//       if (err) {
-//           console.error('Error al iniciar transacción:', err);
-//           return res.status(500).json({ error: 'Error interno del servidor' });
-//       }
-
-//       try {
-//           const updateQuery = `UPDATE adeudamiento 
-//                                SET dia_entrega = ?, monto_entrega = ?, ultimo_estado_entrega = ? 
-//                                WHERE id = ?`;
-
-//           db.query(updateQuery, [fechaEntrega, nuevoValor, ultimaEntrega, id], (err, result) => {
-//               if (err) {
-//                   console.error("Error al ejecutar consulta de actualización en adeudamiento:", err);
-//                   return db.rollback(() => {
-//                       res.status(500).json({ error: "Error interno del servidor" });
-//                   });
-//               }
-
-//               // Commit la transacción si la actualización fue exitosa
-//               db.commit((err) => {
-//                   if (err) {
-//                       console.error("Error al hacer commit de la transacción:", err);
-//                       return db.rollback(() => {
-//                           res.status(500).json({ error: "Error interno del servidor" });
-//                       });
-//                   }
-//                   res.json({ message: "Actualización exitosa" });
-//               });
-//           });
-//       } catch (error) {
-//           console.error('Error al ejecutar transacción:', error);
-//           db.rollback(() => {
-//               res.status(500).json({ error: 'Error interno del servidor' });
-//           });
-//       }
-//   });
-// });
-
-
-app.delete("/api/clients/deleteIndividualDebt", (req, res) => {
-  const { idDelete } = req.body;
-  if (!idDelete) {
-    res.status(400).json({ error: 'Debe proporcionar un ID de usuario' });
-  }
-
-  const query = `DELETE FROM adeudamiento WHERE id = '${idDelete}'`;
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error("Error al ejecutar consulta de eliminación:", err);
-      return res.status(500).json({ error: "Error interno del servidor" });
-    }
-    res.status(200).json({ message: 'Deuda eliminada correctamente' });
-  })
 });
 
-app.post("/api/clients/cancelarFichero", upload.none(), (req, res) => {
+
+app.delete("/api/clients/deleteIndividualDebt", async (req, res) => {
+  const { idDelete } = req.body;
+  if (!idDelete) {
+    return res.status(400).json({ error: 'Debe proporcionar un ID de deuda' });
+  }
+
+  const query = `DELETE FROM adeudamiento WHERE id = ?`;
+
+  try {
+    const [result] = await db.query(query, [idDelete]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Deuda no encontrada' });
+    }
+
+    res.status(200).json({ message: 'Deuda eliminada correctamente' });
+  } catch (err) {
+    console.error("Error al ejecutar consulta de eliminación:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+
+app.post("/api/clients/cancelarFichero", upload.none(), async (req, res) => {
   const data = req.body;
   const cliente = {
     id: data.id,
@@ -233,9 +179,9 @@ app.post("/api/clients/cancelarFichero", upload.none(), (req, res) => {
   console.log("Datos del cliente: ", cliente);
 
   const productos = Array.isArray(data.productos) ? data.productos : [];
-  console.log("Productos: ", productos)
+  console.log("Productos: ", productos);
+
   const itemsToSave = productos.map(product => ({
-    
     nombre_producto: product.nombre_producto,
     precio_unitario: product.precio_unitario,
     moneda: product.moneda,
@@ -248,20 +194,22 @@ app.post("/api/clients/cancelarFichero", upload.none(), (req, res) => {
   }));
   console.log("Items a guardar:", itemsToSave);
 
-  db.beginTransaction(err => {
-    if (err) {
-      console.error("Error al iniciar la transacción:", err);
-      return res.status(500).json({ error: "Error interno del servidor" });
-    }
+  const insertRegistersQuery = `
+    INSERT INTO registro_de_deudas 
+    (nombre_producto, precio_producto, moneda, cantidad, fecha_compra, fecha_de_cancelacion, nombre_cliente, dni, id_cliente)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
 
-    const insertRegistersQuery = `
-      INSERT INTO registro_de_deudas 
-      (nombre_producto, precio_producto,moneda,cantidad, fecha_compra, fecha_de_cancelacion, nombre_cliente, dni, id_cliente)
-      VALUES (?, ?,? ,?, ?, ?, ?, ?, ?)`;
+  const deleteQueryAdeudamientos = `DELETE FROM adeudamiento WHERE id_usuario = ?`;
+  const deleteQueryEntregas = `DELETE FROM entregas WHERE id_cliente_deudor = ?`;
+  const deleteQueryListaDeEntregas = `DELETE FROM lista_de_entregas WHERE id_deudor = ?`;
 
-    // Insertar cada producto en la tabla registro_de_deudas
-    itemsToSave.forEach((item, index) => {
-      db.query(insertRegistersQuery, [
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    for (const item of itemsToSave) {
+      await connection.query(insertRegistersQuery, [
         item.nombre_producto,
         item.precio_unitario,
         item.moneda,
@@ -271,236 +219,147 @@ app.post("/api/clients/cancelarFichero", upload.none(), (req, res) => {
         item.nombre_completo,
         item.dni,
         item.id_usuario
-      ], (err, result) => {
-        if (err) {
-          return db.rollback(() => {
-            console.error("Error al insertar el producto:", err);
-            res.status(500).json({ error: "Error interno del servidor" });
-          });
-        }
-//se utiliza para determinar cuándo se ha procesado el último elemento del array
-        if (index === itemsToSave.length - 1) {
-          const deleteQueryAdeudamientos = `DELETE FROM adeudamiento WHERE id_usuario = ?`;
-          const deleteQueryEntregas = `DELETE FROM entregas WHERE id_cliente_deudor = ?`;
-          const deleteQueryListaDeEntregas = `DELETE FROM lista_de_entregas WHERE id_deudor = ?`;
+      ]);
+    }
 
-          db.query(deleteQueryAdeudamientos, [cliente.id_usuario], (err, result) => {
-            if (err) {
-              return db.rollback(() => {
-                console.error("Error al ejecutar la consulta DELETE adeudamientos:", err);
-                res.status(500).json({ error: "Error interno del servidor" });
-              });
-            }
-            console.log(`Registros de adeudamientos eliminados para idDeudor ${cliente.id_usuario}`);
+    await connection.query(deleteQueryAdeudamientos, [cliente.id_usuario]);
+    console.log(`Registros de adeudamientos eliminados para idDeudor ${cliente.id_usuario}`);
 
-            db.query(deleteQueryEntregas, [cliente.id_usuario], (err, result) => {
-              if (err) {
-                return db.rollback(() => {
-                  console.error("Error al ejecutar la consulta DELETE entregas:", err);
-                  res.status(500).json({ error: "Error interno del servidor" });
-                });
-              }
-              console.log(`Registros de entregas eliminados para idDeudor ${cliente.id_usuario}`);
+    await connection.query(deleteQueryEntregas, [cliente.id_usuario]);
+    console.log(`Registros de entregas eliminados para idDeudor ${cliente.id_usuario}`);
 
-              db.query(deleteQueryListaDeEntregas, [cliente.id_usuario], (err, result) => {
-                if (err) {
-                  return db.rollback(() => {
-                    console.error("Error al ejecutar la consulta DELETE lista_de_entregas:", err);
-                    res.status(500).json({ error: "Error interno del servidor" });
-                  });
-                }
-                console.log(`Registros de lista_de_entregas eliminados para idDeudor ${cliente.id_usuario}`);
+    await connection.query(deleteQueryListaDeEntregas, [cliente.id_usuario]);
+    console.log(`Registros de lista_de_entregas eliminados para idDeudor ${cliente.id_usuario}`);
 
-                db.commit(err => {
-                  if (err) {
-                    return db.rollback(() => {
-                      console.error("Error al hacer commit de la transacción:", err);
-                      res.status(500).json({ error: "Error interno del servidor" });
-                    });
-                  }
-                  console.log("Transacción completada correctamente");
-                  res.status(200).json({ message: 'Fichero cancelado correctamente' });
-                });
-              });
-            });
-          });
-        }
-      });
-    });
-  });
+    await connection.commit();
+    console.log("Transacción completada correctamente");
+    res.status(200).json({ message: 'Fichero cancelado correctamente' });
+  } catch (err) {
+    await connection.rollback();
+    console.error("Error en la transacción:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  } finally {
+    connection.release();
+  }
 });
 
-
-app.post('/api/clients/insertTotalPays', (req, res) => {
+app.post('/api/clients/insertTotalPays', async (req, res) => {
   const { id_usuario, monto_entrega, fecha_entrega } = req.body.data;
 
-  // Iniciar una transacción
-  db.beginTransaction((err) => {
-    if (err) {
-      console.error('Error al iniciar transacción:', err);
-      return res.status(500).json({ error: 'Error interno del servidor' });
+  const checkQuery = `SELECT COUNT(*) AS count FROM entregas WHERE id_cliente_deudor = ?`;
+  const insertQuery = `INSERT INTO entregas (monto_entrega, fecha_entrega, id_cliente_deudor) VALUES (?, ?, ?)`;
+  const listaDeIntregasInsertQuery = `INSERT INTO lista_de_entregas (id_deudor, monto_entrega, fecha_entrega) VALUES (?, ?, ?)`;
+  const fetchLastPayData = `SELECT monto_entrega FROM entregas WHERE id_cliente_deudor = ?`;
+  const updateQuery = `UPDATE entregas SET monto_entrega = ?, fecha_entrega = ? WHERE id_cliente_deudor = ?`;
+
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [result] = await connection.query(checkQuery, [id_usuario]);
+
+    const count = result[0].count;
+
+    if (count === 0) {
+      await connection.query(insertQuery, [monto_entrega, fecha_entrega, id_usuario]);
+      await connection.query(listaDeIntregasInsertQuery, [id_usuario, monto_entrega, fecha_entrega]);
+    } else {
+      const [existingPayData] = await connection.query(fetchLastPayData, [id_usuario]);
+      const montoExistente = parseFloat(existingPayData[0].monto_entrega || 0);
+      const nuevoMonto = montoExistente + parseFloat(monto_entrega);
+
+      await connection.query(updateQuery, [nuevoMonto, fecha_entrega, id_usuario]);
+      await connection.query(listaDeIntregasInsertQuery, [id_usuario, monto_entrega, fecha_entrega]);
     }
 
-    const checkQuery = `SELECT COUNT(*) AS count FROM entregas WHERE id_cliente_deudor = '${id_usuario}'`;
-
-    db.query(checkQuery, (err, result) => {
-      if (err) {
-        console.error('Error al contar registros:', err);
-        return db.rollback(() => {
-          res.status(500).json({ error: 'Error interno del servidor' });
-        });
-      }
-
-      const count = result[0].count;
-
-      if (count === 0) {
-        // Si no hay registros, insertar uno nuevo en entregas
-        const insertQuery = `INSERT INTO entregas (monto_entrega, fecha_entrega, id_cliente_deudor) VALUES ('${monto_entrega}', '${fecha_entrega}', '${id_usuario}')`;
-
-        db.query(insertQuery, (err, result) => {
-          if (err) {
-            console.error('Error al insertar nuevos datos en entregas:', err);
-            return db.rollback(() => {
-              res.status(400).json({ error: 'Error al insertar datos en entregas' });
-            });
-          }
-
-          // Aquí puedes realizar la inserción en la otra tabla
-          const listaDeIntregasInsertQuery = `INSERT INTO lista_de_entregas (id_deudor, monto_entrega, fecha_entrega) VALUES ('${id_usuario}', '${monto_entrega}', '${fecha_entrega}')`;
-
-          db.query(listaDeIntregasInsertQuery, (err, result) => {
-            if (err) {
-              console.error('Error al insertar datos en otra_tabla:', err);
-              return db.rollback(() => {
-                res.status(400).json({ error: 'Error al insertar datos en otra_tabla' });
-              });
-            }
-
-            // Commit de la transacción si todo fue exitoso
-            db.commit((err) => {
-              if (err) {
-                console.error('Error al realizar commit de la transacción:', err);
-                return db.rollback(() => {
-                  res.status(500).json({ error: 'Error interno del servidor' });
-                });
-              }
-              res.status(200).json({ message: 'Datos insertados correctamente' });
-            });
-          });
-        });
-      } else {
-        // Si hay registros, obtener el monto existente y sumarlo con el nuevo
-        const fetchLastPayData = `SELECT monto_entrega FROM entregas WHERE id_cliente_deudor = '${id_usuario}'`;
-
-        db.query(fetchLastPayData, (err, result) => {
-          if (err) {
-            console.error('Error al obtener monto existente:', err);
-            return db.rollback(() => {
-              res.status(500).json({ error: 'Error interno del servidor' });
-            });
-          }
-
-          const montoExistente = result[0].monto_entrega || 0; // por si no existen datos
-          const nuevoMonto = parseFloat(montoExistente) + parseFloat(monto_entrega);
-
-          // Actualizar el monto de entrega con el nuevo valor
-          const updateQuery = `UPDATE entregas SET monto_entrega = '${nuevoMonto}', fecha_entrega = '${fecha_entrega}' WHERE id_cliente_deudor = '${id_usuario}'`;
-
-          db.query(updateQuery, (err, result) => {
-            if (err) {
-              console.error('Error al actualizar datos existentes:', err);
-              return db.rollback(() => {
-                res.status(400).json({ error: 'Error al actualizar datos' });
-              });
-            }
-
-            // Aquí puedes realizar la inserción en la otra tabla
-            const insertRegisterQuery = `INSERT INTO lista_de_entregas (monto_entrega, fecha_entrega, id_deudor) VALUES ('${monto_entrega}', '${fecha_entrega}', '${id_usuario}')`;
-
-            db.query(insertRegisterQuery, (err, result) => {
-              if (err) {
-                console.error('Error al insertar datos en otra_tabla:', err);
-                return db.rollback(() => {
-                  res.status(400).json({ error: 'Error al insertar datos en otra_tabla' });
-                });
-              }
-
-              // Commit de la transacción si todo fue exitoso
-              db.commit((err) => {
-                if (err) {
-                  console.error('Error al realizar commit de la transacción:', err);
-                  return db.rollback(() => {
-                    res.status(500).json({ error: 'Error interno del servidor' });
-                  });
-                }
-                res.status(200).json({ message: 'Datos actualizados correctamente' });
-              });
-            });
-          });
-        });
-      }
-    });
-  });
+    await connection.commit();
+    res.status(200).json({ message: 'Datos actualizados correctamente' });
+  } catch (err) {
+    await connection.rollback();
+    console.error('Error en la transacción:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    connection.release();
+  }
 });
 
 
 
-app.get("/api/clients/getTotalPays", (req, res) => {
+
+app.get("/api/clients/getTotalPays", async (req, res) => {
   const { id_deudor } = req.query;
 
-  if (id_deudor !== undefined && id_deudor !== null) {
-    const query = `SELECT * FROM entregas WHERE id_cliente_deudor = '${id_deudor}'`;
-
-    db.query(query, (err, results) => {
-      if (err) {
-        console.error('Error en la consulta SQL:', err);
-        return res.status(500).json({ error: 'Error interno del servidor' });
-      }
-      console.log("Datos obtenidos")
-      res.status(200).json(results);
-    });
-  } else {
+  if (!id_deudor) {
     console.log("No se proporcionó un ID de deudor");
-    res.status(400).json({ error: 'No se proporcionó un ID de deudor válido' });
+    return res.status(400).json({ error: 'No se proporcionó un ID de deudor válido' });
+  }
+
+  const query = `SELECT * FROM entregas WHERE id_cliente_deudor = ?`;
+
+  try {
+    const [results] = await db.query(query, [id_deudor]);
+    console.log("Datos obtenidos");
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('Error en la consulta SQL:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-app.get("/api/clients/getRegisterPays", (req, res) => {
-  const { id_deudor } = req.query
-  const query = `SELECT * FROM lista_de_entregas WHERE id_deudor = '${id_deudor}'`;
 
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Error en la consulta SQL:', err);
-      return res.status(500).json({ error: 'Error interno del servidor' });
-    }
-    
-    console.log("Datos obtenidos")
-    res.status(200).json(result);
-  });
-})
+app.get("/api/clients/getRegisterPays", async (req, res) => {
+  const { id_deudor } = req.query;
 
-app.post("/api/clients/obtenerHistorialDelCliente", (req, res) => {
-  const { nombre, dni, apellido } = req.body
-  let query = '';
-  if (nombre) {
-    query = `SELECT * FROM registro_de_deudas WHERE nombre_cliente = '${nombre}'`;
-  } else if (dni) {
-    query = `SELECT * FROM registro_de_deudas WHERE dni = '${dni}'`;
-  } else {
-    return res.status(400).send('Debe proporcionar nombre, apellido o dni para la búsqueda.');
+  if (!id_deudor) {
+    console.log("No se proporcionó un ID de deudor");
+    return res.status(400).json({ error: 'No se proporcionó un ID de deudor válido' });
   }
-  db.query(query, (err, result) => {
-    if (err) {
-      res.status(500).json({ error: "No se pudo ontener el historial del usuario" })
-    }
+
+  const query = `SELECT * FROM lista_de_entregas WHERE id_deudor = ?`;
+
+  try {
+    const [result] = await db.query(query, [id_deudor]);
+    console.log("Datos obtenidos");
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('Error en la consulta SQL:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+
+app.post("/api/clients/obtenerHistorialDelCliente", async (req, res) => {
+  const { nombre, dni } = req.body;
+
+  let query = '';
+  let params = [];
+
+  if (nombre) {
+    query = `SELECT * FROM registro_de_deudas WHERE nombre_cliente = ?`;
+    params.push(nombre);
+  } else if (dni) {
+    query = `SELECT * FROM registro_de_deudas WHERE dni = ?`;
+    params.push(dni);
+  } else {
+    return res.status(400).json({ error: 'Debe proporcionar nombre o dni para la búsqueda.' });
+  }
+
+  try {
+    const [result] = await db.query(query, params);
+
     if (result.length === 0) {
       return res.status(404).json({ error: 'Este usuario no tiene historial de deudas' });
-      
     }
-    console.log(result)
-    res.status(200).json(result)
-  })
-})
+
+    console.log(result);
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('Error en la consulta SQL:', err);
+    res.status(500).json({ error: 'No se pudo obtener el historial del usuario' });
+  }
+});
+
 app.listen(PORT)
 console.log(`SERVER ON PORT ${PORT}`)
