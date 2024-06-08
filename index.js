@@ -23,7 +23,7 @@ const {PORT} = require("./config.js")
 //   }
 // }));
 app.use(cors({
-  origin: "https://gestor-cuentas-corrientes.vercel.app/debtHistory"
+  origin: "https://gestor-cuentas-corrientes.vercel.app/"
 }))
 app.use(bodyParser.json()); //para apps json
 app.use(bodyParser.urlencoded({ extended: true })); // Middleware para parsear application/x-www-form-urlencoded
