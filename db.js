@@ -6,11 +6,11 @@ let connection;
 // Función para conectar inicialmente y manejar reconexiones
 function connectDatabase() {
   connection = mysql.createConnection({
-    host: DB_HOST,
-    user: DB_USER,
-    password: DB_PASSWORD,
-    port: DB_PORT,
-    database: DB_NAME,
+    host: "roundhouse.proxy.rlwy.net",
+    user: "root",
+    password: "tPRzNQCzcGpiollnUbazmEHjsDVhGHUT",
+    port: 15873,
+    database: "railway",
     multipleStatements: true // Permite ejecutar múltiples declaraciones en una sola consulta
   });
 
