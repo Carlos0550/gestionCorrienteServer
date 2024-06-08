@@ -1,10 +1,18 @@
-const mysql = require("mysql")
+const mysql = require("mysql");
+const {
+    DB_HOST,
+    DB_NAME,
+    DB_PASSWORD,
+    DB_USER,
+    DB_PORT
+}= require("./config.js");
 
 const connection = mysql.createConnection({
-    host: process.env.DB_HOST || "localhost",
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "joyeria"
+    host: DB_HOST,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    port: DB_PORT,
+    database: DB_NAME
 });
 
 connection.connect((err)=>{

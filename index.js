@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const app = express();
 const upload = multer();
+const {PORT} = require("./config.js")
 
 // app.use(cors());
 const allowedOrigins = [
@@ -512,7 +513,5 @@ app.post("/api/clients/obtenerHistorialDelCliente", (req, res) => {
     res.status(200).json(result)
   })
 })
-const port = 3001;
-app.listen(process.env.PORT || port, () => {
-  console.log(`Servidor corriendo en el puerto ${port}`);
-});
+app.listen(PORT)
+console.log(`SERVER ON PORT ${PORT}`)
