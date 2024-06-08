@@ -1,4 +1,4 @@
-const mysql = require("mysql");
+const mysql = require("mysql2");
 const { DB_HOST, DB_NAME, DB_PASSWORD, DB_USER, DB_PORT } = require("./config.js");
 
 let connection;
@@ -6,11 +6,11 @@ let connection;
 // Función para conectar inicialmente y manejar reconexiones
 function connectDatabase() {
   connection = mysql.createConnection({
-    host: "roundhouse.proxy.rlwy.net",
-    user: "root",
-    password: "tPRzNQCzcGpiollnUbazmEHjsDVhGHUT",
-    port: 15873,
-    database: "railway",
+    host: DB_HOST,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    port: DB_PORT,
+    database: DB_NAME,
     multipleStatements: true // Permite ejecutar múltiples declaraciones en una sola consulta
   });
 
