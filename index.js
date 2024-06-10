@@ -391,7 +391,7 @@ app.put("/api/clients/updateClientData", async (req, res) => {
       return res.status(404).send("Usuario no encontrado");
     }
 
-    res.send("Datos actualizados correctamente");
+    res.status(200).send("Datos actualizados correctamente");
     console.log("Operation succesfully")
   } catch (error) {
     console.error(error);
