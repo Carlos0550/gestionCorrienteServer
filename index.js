@@ -360,6 +360,43 @@ app.post("/api/clients/obtenerHistorialDelCliente", async (req, res) => {
     res.status(500).json({ error: 'No se pudo obtener el historial del usuario' });
   }
 });
+app.put("/api/clients/updateClientData", async (req, res) => {
+  const { values, idDeudor } = req.body;
+  console.log(idDeudor)
+  // Verificar que idDeudor y otros campos necesarios están presentes
+  if (!idDeudor || !values.nombre_completo || !values.apellido || !values.dni || !values.telefono || !values.correo || !values.direccion) {
+    console.log("Todos los campos son requeridos");
+    return res.status(400).send("Todos los campos son requeridos");
+  }
 
+  const updateQuery = `
+    UPDATE usuarios 
+    SET nombre = ?, apellido = ?, dni = ?, telefono = ?, email = ?, direccion = ?
+    WHERE id_deudor = ?                       
+  `;
+
+  try {
+    const [result] = await db.execute(updateQuery, [
+      values.nombre_completo, 
+      values.apellido, 
+      values.dni, 
+      values.telefono, 
+      values.correo, 
+      values.direccion, 
+      idDeudor
+    ]);
+
+    if (result.affectedRows === 0) {
+      console.log("User not found")
+      return res.status(404).send("Usuario no encontrado");
+    }
+
+    res.send("Datos actualizados correctamente");
+    console.log("Operation succesfully")
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error actualizando datos");
+  }
+});
 app.listen(PORT)
 console.log(`SERVER ON PORT ${PORT}`)
